@@ -1,118 +1,113 @@
-import dspy
+import asyncio
 from tqdm import tqdm
-import os
 import chess
 import random
 from dotenv import load_dotenv
 import concurrent.futures
 from fire import Fire
-import chess.svg
 
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+import chess.svg
 
 # Load environment variables from .env file
 assert load_dotenv()
 
+PROMPT_PLAYER_A = """
+Your task is to make a plan to win a chess game against an opponent in a specified number of moves. You play as white and your opponent plays as black. 
 
-class PlayerA(dspy.Signature):
-    """You are an expert chess analysis engine. Your purpose is to identify the optimal move in a given chess position, operating under specific tactical constraints.
+# Input 
+- FEN
+- Legal moves
+- Moves left
+- Additional instructions, if any. (pay attention to them if they exist).
 
-    # Primary Objective
-    Find a sequence of moves that leads to a forced checkmate within the `number_of_remaining_moves`.
+# Instructions:
+1. Write a step-by-step plan as a list of moves (UCI), with reasoning for each step.
+2. Analyze Black's best defenses.
+3. Choose your next move from the legal moves.
+4. If this is the last move, ensure your move delivers checkmate or stalemate. Only select from the legal moves provided.
 
-    ---
 
-    # Context and Inputs
-    You will be provided with the following information for each turn:
+# Output format
+plan: (your plan as a list of moves and reasoning)
+reasoning: (all your thinking and analysis)
+move: (your next move in UCI format)
 
-    - **`player_color`**: The color you are playing (e.g., 'white').
-    - **`board_fen`**: The current state of the chessboard in Forsyth-Edwards Notation (FEN).
-    - **`legal_moves`**: A list of all legal moves available to you in the current position (in UCI format).
-    - **`number_of_remaining_moves`**: The maximum number of moves you have left to achieve the Primary Objective. If this is 1, you must deliver checkmate on this move.
-    - **`additional_instructions`**: Optional strategic guidance to consider (e.g., "Prioritize saving the h-pawn" or "Attempt to trade queens").
+Example:
+plan:
+- Qf5-h7 (threatens mate)
+- Qh7-h8# (checkmate)
 
-    ---
+reasoning:
+Qf5-h7 threatens mate on h8. If Black does not defend, Qh7-h8 will be mate next move.
 
-    # Reasoning Process
-    Before providing your final move, you must reason through the position by following these steps:
+move: f5h7
+"""
 
-    1.  **Board Assessment**: Briefly analyze the current board state (`board_fen`). Identify immediate threats from your opponent, your own tactical opportunities, material balance, and key positional features.
-    2.  **Objective Check**: Determine if the `Primary Objective` is achievable. Search for candidate moves that could lead to a forced checkmate within the `number_of_remaining_moves`.
-        * If you find one or more mating sequences, outline the most efficient one.
-    3.  **Fallback Plan**: If no forced mate within the limit is found, activate the `Secondary Objective`. Evaluate the top candidate moves based on their potential to improve your position. Consider factors like:
-        * Forcing a future checkmate sequence.
-        * Gaining a significant material advantage.
-        * Seizing control of the center, improving piece activity, or creating weaknesses in the opponent's structure.
-    4.  **Threat Verification**: For your chosen move, perform a final check for any immediate blunders or missed threats from the opponent. Ensure your move is safe and advances your plan.
-    5.  **Plan Formulation**: State your chosen move and provide a concise one-sentence summary of your plan.
 
-    ---
-
-    # Output Format
-    Your final response must be the single best move you have identified, expressed in Universal Chess Interface (UCI) format.
-
-    # Example Output:
-    e2e4
-    ```
+class PlayerAOutput(BaseModel):
+    """
+    The output model for Player A, which includes the move and reasoning.
     """
 
-    fen: str = dspy.InputField(
-        description="The FEN string representing the current state of the chessboard."
+    plan: str = Field(
+        description="A step-by-step plan as a list of moves (UCI), with reasoning for each step."
     )
-    legal_moves: list = dspy.InputField(
-        description="A list of legal moves in the current position, represented in UCI format (e.g., 'e2e4')."
+    reasoning: str = Field(
+        description="A brief explanation of the reasoning behind the chosen move."
     )
-    number_of_remaining_moves: int = dspy.InputField(
-        description="The number of moves left in the game.",
-    )
-    additional_instructions: str = dspy.InputField(
-        description="Additional instructions to take into account when considering the best move to make.",
-        default="",
-    )
-    move: str = dspy.OutputField(
-        description="The best move to make in the current position, in UCI format (e.g., 'e2e4').",
+    move: str = Field(
+        description="The best move to make in the current position, in UCI format (e.g., 'e2e4')."
     )
 
 
-class PlayerB(dspy.Signature):
+PROMPT_PLAYER_B = """
+You are an expert chess analysis engine. Your task is to make a plan to win a chess game against an opponent in a specified number of moves. 
+
+You play as white and your opponent plays as black. 
+
+# Input 
+- Current board position in FEN format.
+- Legal moves (as a list of UCI strings).
+- Number of moves left in the game (you need to win within this number of moves).
+- Additional instructions, if any. (pay attention to them if they exist).
+- plan: a plan generated by you during the previous move. Use it to infer your strategy for this move. The plan was generated before black played their last move.
+
+Think step by step according to the following instructions:
+
+# Instructions
+Your objective is to win the game by making the best moves possible within the number of moves left in the game.
+
+1. Inspect the black king position and the high values pieces you have. Note down any forcing moves you can make.
+2. If no useful forcing moves are available, consider the following:
+    1. If you can capture a high-value piece, do so.
+    2. If you can create a threat against the black king, do so.
+3. Generate a plan to win the game in the number of moves left. 
+
+Once you are done with plan generation, proceed to the next section.
+
+# Final output 
+- all thinking about the plan should be done in the reasoning section.
+- a brief summary of the plan should be provided in the plan section, formatted as a list of bullet points. Include both the current move and the plan for the next move.
+- Once thinking is done, respond with your next move in UCI format (e.g., 'e2e4').
+"""
+
+
+class PlayerBOutput(BaseModel):
     """
-    Play grandmaster-level chess against an opponent. Your objective is to win the game by making the best moves possible within the
-    number of moves left in the game.
-
-    # Instructions
-    - You have a limited number of moves to make, you must win within the number of moves left in the game. If number_of_remaining_moves is 1, you must checkmate your opponent the next move.
-    - Reason about the best move to make in the current position, considering:
-        1. the legal moves available
-        2. the number of moves left in the game,
-        3. any additional_instructions.
-        4. and, most importantly, the plan from the previous move. Review if it still makes sense, and if it does, use it, otherwise revise it. Infer what black did based on what you see on the board as well as your plan.
-    - Make a plan about how you will win the game in the number_of_remaining_moves. Consider the opponent's threats and how to counter them.
-    - Respond with your next move in UCI format (e.g., 'e2e4').
-    - Also respond with your short plan for the next move. It should be formatted as a list of bullet points, with each bullet point starting with a dash (-) and a space. Mention what you did in the previous move, and what you plan to do in the next move.
+    The output model for Player B, which includes the move, plan, and reasoning.
     """
 
-    fen: str = dspy.InputField(
-        description="The FEN string representing the current state of the chessboard."
+    reasoning: str = Field(
+        description="A brief explanation of the reasoning behind the chosen move."
     )
-    legal_moves: list = dspy.InputField(
-        description="A list of legal moves in the current position, represented in UCI format (e.g., 'e2e4')."
+    move: str = Field(
+        description="The best move to make in the current position, in UCI format (e.g., 'e2e4')."
     )
-    number_of_remaining_moves: int = dspy.InputField(
-        description="The number of moves left in the game.",
-    )
-    additional_instructions: str = dspy.InputField(
-        description="Additional instructions to take into account when considering the best move to make.",
-        default="",
-    )
-    plan_from_previous_move: str = dspy.InputField(
-        description="A short plan from the previous move, formatted as a list of bullet points.",
-        default="",
-    )
-    move: str = dspy.OutputField(
-        description="The best move to make in the current position, in UCI format (e.g., 'e2e4').",
-    )
-    plan: str = dspy.OutputField(
-        description="A short plan for the next move, formatted as a list of bullet points.",
-        default="",
+    plan: str = Field(
+        description="A short plan for the next move, formatted as a list of bullet points."
     )
 
 
@@ -123,7 +118,7 @@ def random_player(board) -> str:
     """
     legal_moves = list(board.legal_moves)
     if not legal_moves:
-        assert False, "No legal moves available, cannot play."
+        raise ValueError("No legal moves available in the current position.")
     move = random.choice(legal_moves)
     return move.uci()
 
@@ -132,7 +127,7 @@ def play_game(
     fen: str,
     llm_player,
     move_limit: int = 2,
-    use_valid_move_checker: bool = False,
+    valid_move: bool = False,
     use_plan: bool = False,
 ) -> str:
     """
@@ -140,6 +135,8 @@ def play_game(
     """
 
     board = chess.Board(fen)
+    print(board.unicode())
+
     plan = None
     while not board.is_game_over():
         if move_limit <= 0:
@@ -147,14 +144,18 @@ def play_game(
             break
 
         legal_moves = [m.uci() for m in board.legal_moves]
+
         move = llm_player_move(
-            llm_player, move_limit, board, legal_moves, use_valid_move_checker, plan
+            llm_player, move_limit, board, legal_moves, valid_move, plan
         )
         plan = move.plan.strip() if use_plan else None
+
         board.push_uci(move.move)
         move_limit -= 1
 
         print("reasoning:", move.reasoning)
+        print("LLM player move:", move.move)
+        print(board.unicode())
 
         if board.is_game_over():
             break
@@ -162,7 +163,7 @@ def play_game(
         # random player makes a move
         random_move = random_player(board)
         board.push_uci(random_move)
-
+        print(f"Random player move: {random_move}")
         print(board.unicode())
 
     # print the result for white and black
@@ -180,37 +181,47 @@ def llm_player_move(
     move_limit,
     board,
     legal_moves,
-    use_valid_move_checker: bool = False,
+    valid_move: bool = False,
     plan: str | None = None,
 ):
     additional_instructions = ""
 
     for _ in range(3):
         if plan:
-            move = llm_player(
-                fen=board.fen(),
-                legal_moves=legal_moves,
-                number_of_remaining_moves=move_limit,
-                additional_instructions=additional_instructions,
-                plan_from_previous_move=plan,
-            )
+            input_prompt = f"""
+            =======CHESS GAME========
+            - Current board position (FEN): {board.fen()}
+            - LEGAL MOVES: {", ".join(legal_moves)}
+            - MOVES LEFT: {move_limit}
+            - CURRENT PLAN: {plan}
+            =========================
+            - ADDITIONAL INSTRUCTIONS: {additional_instructions}
+            """
+            move = asyncio.run(
+                llm_player.run(input_prompt, model_settings={"temperature": 0.0})
+            ).output
+
             plan = move.plan.strip()
         else:
-            move = llm_player(
-                fen=board.fen(),
-                legal_moves=legal_moves,
-                number_of_remaining_moves=move_limit,
-                additional_instructions=additional_instructions,
-            )
+            input_prompt = f"""
+            =======CHESS GAME========
+            - Current board position (FEN): {board.fen()}
+            - LEGAL MOVES: {", ".join(legal_moves)}
+            - MOVES LEFT: {move_limit}
+            - ADDITIONAL INSTRUCTIONS: {additional_instructions}
+            ========================="""
+            move = asyncio.run(
+                llm_player.run(input_prompt, model_settings={"temperature": 0.0})
+            ).output
 
         llm_move = move.move.strip()
 
-        if use_valid_move_checker and (not llm_move or llm_move not in legal_moves):
+        if valid_move and (not llm_move or llm_move not in legal_moves):
             additional_instructions += f"- The move you proposed: {llm_move} is not a legal move. Please check the legal moves and try again.\n"
             print(f"LLM move {llm_move} is not legal, retrying.")
             continue
 
-        if use_valid_move_checker and move_limit == 1:
+        if valid_move and move_limit == 1:
             temp_board = board.copy()
             temp_board.push_uci(llm_move)
             if not temp_board.is_checkmate():
@@ -231,25 +242,29 @@ def llm_player_move(
 def main(
     number_of_trials: int = 5,
     parallel_games: int = 1,
-    use_valid_move_checker: bool = False,
+    valid_move: bool = False,
     use_plan: bool = False,
 ) -> None:
-    """
-    Load the first puzzle from a file and play the puzzle number_of_trials times in parallel.
-    Then output statistics about the results of the game.
-    """
-    lm = dspy.LM(
-        model="openrouter/anthropic/claude-3-7-sonnet-20250219",
-        api_key=os.environ.get("OPENROUTER_API_KEY"),
-        cache=False,
+    lm = OpenAIModel(
+        "anthropic/claude-3-7-sonnet-20250219",
+        provider="openrouter",
     )
 
-    dspy.configure(lm=lm)
-
     if use_plan:
-        llm_player = dspy.ChainOfThought(PlayerB)
+        llm_player = Agent(
+            model=lm,
+            system_prompt=PROMPT_PLAYER_B,
+            output_type=PlayerBOutput,
+            name="Player B",
+        )
     else:
-        llm_player = dspy.ChainOfThought(PlayerA)
+        print("Using Player A prompt, no plan will be generated.")
+        llm_player = Agent(
+            model=lm,
+            system_prompt=PROMPT_PLAYER_A,
+            output_type=PlayerAOutput,
+            name="Player A",
+        )
 
     # from Siegbert Tarrasch vs. Max Kurschner, mate in 2
     # https://www.sparkchess.com/chess-puzzles/siegbert-tarrash-vs-max-kurschner.html
@@ -276,7 +291,7 @@ def main(
             fen,
             llm_player,
             move_limit,
-            use_valid_move_checker=use_valid_move_checker,
+            valid_move=valid_move,
             use_plan=use_plan,
         )
 

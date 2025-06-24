@@ -16,8 +16,15 @@ from dataclasses import dataclass
 from src.players import random_player, LLMPlayer, ChessBM
 from src.prompts import construct_system_prompt
 
+import logfire
+
+
 # Load environment variables from .env file
 assert load_dotenv()
+
+# configure logfire
+logfire.configure(token=os.getenv("LOGFIRE_KEY"))
+logfire.instrument_pydantic_ai()
 
 
 @dataclass
@@ -188,7 +195,7 @@ def main(
     if use_plan:
         print("Using plan in the output.")
         example = """# Example of game state and reasoning: 
-        FEN: r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0\n legal_moves: [f5h7, f5h8, f5e6, f5g6, f5f6, f5d4, f5c3, f5b2]\n moves_left: 2\n additional_instructions: None\n plan:  [Bf5-h7: threatens mate on h8, Bh7-h8: next move mate] reasoning:\n Bf5-h7 threatens mate on h8. If Black does not defend, Bh7-h8 will be mate next move. \n move: f5h7"""
+        FEN: r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0\n legal_moves: [f5h7, f5h8, f5e6, f5g6, f5f6, f5d4, f5c3, f5b2]\n moves_left: 2\n additional_instructions: None\n plan:  [Bf5-h7: threatens mate on h8, Bh7-h8: next move] reasoning:\n Bf5-h7 threatens mate on h8. If Black does not defend, Bh7-h8 will be mate next move. \n move: f5h7"""
 
         class ChessBMP(ChessBM):
             plan: list[str] = Field(
@@ -293,12 +300,14 @@ def prep_puzzle(mate_in_k=2):
             2,
             "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
         )
+
+        # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
+        move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
     elif mate_in_k == 3:
-        # from Dawid Przepiorka vs. Erich Eliskases, mate in 3
-        # https://www.sparkchess.com/chess-puzzles/dawid-przepiorka-vs-erich-eliskases.html
+        # https://www.sparkchess.com/chess-puzzles/william-evans-vs-alexander-macdonnell.html
         move_limit, puzzle = (
             3,
-            "2r3k1/p4p2/3Rp2p/1p2P1pK/8/1P4P1/P3Q2P/1q6 b - - 0 1",
+            "r3k2r/ppp2Npp/1b5n/4p2b/2B1P2q/BQP2P2/P5PP/RN5K w kq - 1 0",
         )
     else:
         raise ValueError(f"k = {mate_in_k} is not supported.")

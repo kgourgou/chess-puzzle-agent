@@ -16,3 +16,4 @@ mlruns/
 build/
 
 .python-version 
+ src/chess_puzzle_agent.egg-info/

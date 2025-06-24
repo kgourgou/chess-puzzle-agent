@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-src/chess_puzzle_agent.egg-info/PKG-INFO
-src/chess_puzzle_agent.egg-info/SOURCES.txt
-src/chess_puzzle_agent.egg-info/dependency_links.txt
-src/chess_puzzle_agent.egg-info/requires.txt
-src/chess_puzzle_agent.egg-info/top_level.txt

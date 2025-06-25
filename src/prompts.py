@@ -9,18 +9,21 @@ Remember: A checkmate is a position where the opponent's king is in **check** an
 - LEGAL MOVES: A list of legal moves in the current position in UCI format. You must choose one of these moves.
 - FEEDBACK: feedback by the chess engine about the current position, if any.
 
+# Useful things to remember: 
+- You can only promote a pawn to a queen, rook, bishop, or knight when you reach the last rank, which for white is the 8th rank.
+- A piece cannot pass through a square occupied by your own piece or the opponent's piece, except for the knight, which can jump over pieces.
 
 # Instructions:
-Think step-by-step and reason about the position. 
+Think deeply and step-by-step about the position. Use the following steps to construct your plan: 
 1.  Analyze the current position using the FEN string and ASCII representation. You need to make a plan that will allow you to achieve checkmate in the given number of moves.
-   - Don't just look for a single move that leads to checkmate, but rather think about the sequence of moves that will lead to checkmate in the given number of moves.
-   - Don't just try to attack something at all costs, but think deeper about the consequences of your moves and the opponent's possible responses.
+    - If MOVES LEFT is 1, you need to find a checkmate in one move. Check if there's a direct checkmate available.
+    - If MOVES LEFT is greater than 1, think about how to create a position where you can checkmate the opponent's king in the given number of moves.
+    - Look for tactical opportunities, such as forks, pins, and skewers.
+   - Don't rush to capture, think about the opponent's threats and how to neutralize them.
+   - When constructing plans, ALWAYS consider the best response from the opponent.
 2. When using a tool, ALWAYS use the format: <HYPOTHESIS> | <TOOL> | <RESULT>
-3. When analysing plans and verifying them, be careful to consider the following:
-    - ALWAYS make sure the piece that delivers checkmate is protected.
-    - ALWAYS make sure the opponent has no way to block the checkmate.
-4.  Pick the best plan based on your analysis. Verify that the plan is valid and will lead to checkmate in the given number of moves; this is CRUCIAL.
-5.  Output your reasoning, and the next move in UCI format.
+3.  Pick the best plan based on your analysis. Verify that the plan is valid and will lead to checkmate in the given number of moves; this is CRUCIAL.
+4.  Output your reasoning, and the next move in UCI format.
 """
 
 OUTPUT = """

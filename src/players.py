@@ -5,117 +5,19 @@ import chess
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 import chess.engine
+from pydantic_ai.models.openai import OpenAIModel
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 STOCKFISH_PATH = "/opt/homebrew/bin/stockfish"
 
-
-# TODO I should move the tools inside the agent class and also have it control a copy of the board.
-# THEN I won't have to pass FEN strings around, I can just pass the board object.
-def top_5_moves(fen: str) -> list:
-    """
-    Returns a list of the top 5 legal moves from a given position using Stockfish.
-
-    Args:
-        fen (str or chess.Board): The Forsyth-Edwards Notation string of the starting position
-                                  or a chess.Board object.
-
-    Returns:
-        A list of moves in UCI format. The list is sorted by score in descending order,
-        with the top 5 moves returned. If 5 exceeds the number of legal moves, it returns
-        all legal moves sorted by score.
-    """
-    scores = []
-    if isinstance(fen, chess.Board):
-        board = fen.copy()
-    else:
-        # If fen is a string, create a board from it
-        board = chess.Board(fen)
-    try:
-        with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
-            for move in board.legal_moves:
-                board.push(move)
-                # Use a very low limit for a quick evaluation
-                info = engine.analyse(board, chess.engine.Limit(depth=5))
-                score = (
-                    info["score"].white().score(mate_score=10000)
-                )  # Get a raw number
-                scores.append((move.uci(), score))
-                board.pop()  # Undo the move
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return []
-
-    k = 5  # Default to top 5 moves
-    k = min(k, len(scores))  # Ensure k does not exceed the number of moves
-    if k <= 0:
-        return []
-    sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)[:k]
-
-    # remove the scores from the output
-    return [move for move, _ in sorted_scores]
-
-
-def is_mate_in_1_moves(move: str, fen: str) -> bool:
-    """
-    Checks if a move leads to checkmate in exactly 1 from the given position.
-    Useful for checking the end of a plan.
-
-    Args:
-        move (str): The move in UCI format (e.g., 'e2e4').
-        fen (str): The Forsyth-Edwards Notation string of the starting position.
-
-    Returns:
-        bool: True if the move leads to checkmate in exactly 1 move, False otherwise.
-    """
-    board = chess.Board(fen)
-    n_moves = 1  # Set the number of moves to check for checkmate
-    try:
-        uci_move = chess.Move.from_uci(move)
-        if uci_move not in board.legal_moves:
-            return False
-        board.push(uci_move)
-        for _ in range(n_moves):
-            if board.is_checkmate():
-                return True
-            # Simulate opponent's best response
-            with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
-                info = engine.analyse(board, chess.engine.Limit(depth=5))
-                if "pv" not in info or not info["pv"]:
-                    return False
-                best_move = info["pv"][0]
-                board.push(best_move)
-        return board.is_checkmate()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return False
-
-
-def piece_is_vulnerable(piece_square: str, board_fen: str) -> bool:
-    """
-    Checks if a piece on a given square is vulnerable to capture by the opponent.
-    A vulnerable piece is one that can be attacked by at least one of the opponent's pieces,
-    including the king.
-
-    Args:
-        piece_square (str): The square of the piece in algebraic notation (e.g., 'e4').
-        board_fen (str): The Forsyth-Edwards Notation string of the current board position.
-
-    Returns:
-        bool: True if the piece is vulnerable, False otherwise.
-    """
-    board = chess.Board(board_fen)
-    try:
-        target_square = chess.parse_square(piece_square.lower())
-        piece_color = board.color_at(target_square)
-        if piece_color is None:
-            return False  # No piece on the square
-
-        attacking_color = not piece_color
-        attackers = board.attackers(attacking_color, target_square)
-
-        return len(attackers) > 0
-    except ValueError:
-        return False  # Invalid square provided
+model_name = "anthropic/claude-3-7-sonnet-20250219"
+lm = OpenAIModel(
+    model_name=model_name,
+    provider="openrouter",
+)
 
 
 def get_principal_variation(move: str, fen: str) -> dict[str, typing.Any]:
@@ -213,15 +115,24 @@ def get_best_legal_counter_move_by_opponent(move: str, board_fen: str) -> str:
     :return: The best counter move in UCI format.
     """
     board = chess.Board(board_fen)
-    move = chess.Move.from_uci(move)
-    if move not in board.legal_moves:
+
+    legal_moves = [m.uci() for m in board.legal_moves]
+    if move not in legal_moves:
         return f"Error: Move {move} is not legal in the current position."
+
+    move = chess.Move.from_uci(move)
+
     with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
         # Push the move to the board
         board.push(move)
         # Get the best counter move
         info = engine.analyse(board, chess.engine.Limit(time=0.2))
-        best_move = info["pv"][0]
+
+        best_move = info.get("pv", [])
+        if best_move:
+            best_move = best_move[0]
+        else:
+            best_move = None
 
     return best_move.uci() if best_move else "No counter move found."
 
@@ -373,14 +284,10 @@ class LLMPlayer(Agent):
         output_type = output_type or ChessBM
 
         chess_tools = [
-            # top_3_moves,
-            # get_principal_variation
-            get_attackers_of_squares,
-            # get_best_legal_counter_move_by_opponent,
-            # move_is_legal,
-            # score_move_against_stockfish,
-            # is_mate_in_n_moves,
+            get_best_legal_counter_move_by_opponent,
         ]
+
+        # simulate_and_evaluate]
         self.cache = {}
 
         super().__init__(
@@ -554,7 +461,36 @@ class LLMPlayer(Agent):
             else "**Black's Pieces:**\nNone"
         )
 
-        info = f"""{white_section}\n{black_section}"""
+        # --- Tactical information about the king ---
+        tactical_info = []
+        for color, name in [(chess.WHITE, "White"), (chess.BLACK, "Black")]:
+            king_square = board.king(color)
+            if king_square is not None:
+                king_status = f"{name} king is at {chess.square_name(king_square)}."
+                if board.is_checkmate() and board.turn == color:
+                    king_status += " The king is in checkmate."
+                elif board.is_stalemate() and board.turn == color:
+                    king_status += " The king is stalemated."
+                elif board.is_check() and board.turn == color:
+                    king_status += " The king is currently in check."
+                else:
+                    king_status += " The king is not currently in check."
+                # Castling rights
+                if color == chess.WHITE:
+                    if board.has_kingside_castling_rights(
+                        chess.WHITE
+                    ) or board.has_queenside_castling_rights(chess.WHITE):
+                        king_status += " Castling is still possible."
+                else:
+                    if board.has_kingside_castling_rights(
+                        chess.BLACK
+                    ) or board.has_queenside_castling_rights(chess.BLACK):
+                        king_status += " Castling is still possible."
+                tactical_info.append(king_status)
+            else:
+                tactical_info.append(f"{name} king is not on the board.")
+
+        info = f"""{white_section}\n{black_section}\nTactical information:\n- {"-".join(tactical_info)}"""
         if isinstance(board, str):
             if len(self.cache) < 3:
                 self.cache[board] = info
@@ -607,3 +543,73 @@ def random_player(board: chess.Board) -> str:
         raise ValueError("No legal moves available in the current position.")
     move = random.choice(legal_moves)
     return move.uci()
+
+
+def simulate_and_evaluate(move: str, fen: str) -> str:
+    """
+    Simulates a move on the given FEN, analyzes the resulting position with Stockfish,
+    and returns commentary on the move.
+
+    This simulation may not 100% match the opponent's responses, but it is against the
+    best continuation according to Stockfish. It provides an evaluation of the move,
+    whether it leads to check, and the best continuation from that position.
+
+    Args:
+        move (str): The move in UCI format (e.g., 'e2e4').
+        fen (str): The Forsyth-Edwards Notation string of the starting position
+    """
+
+    pv_depth = 3
+    board = chess.Board(fen)
+    legal_moves = [m.uci() for m in board.legal_moves]
+    if move not in legal_moves:
+        return f"Error: Move {move} is not legal in the current position."
+
+    move_obj = chess.Move.from_uci(move)
+    board.push(move_obj)
+    is_check = board.is_check()
+
+    with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
+        info = engine.analyse(board, chess.engine.Limit(depth=pv_depth), multipv=1)[0]
+        score = info["score"].white()
+        # Handle mate scores
+        if score.is_mate():
+            evaluation = f"#{score.mate()}"
+        else:
+            evaluation = f"{score.score(mate_score=100000) / 100:.1f}"
+
+        # Get the principal variation (PV)
+        pv_moves = info.get("pv", [])
+        continuation = [move.uci() for move in pv_moves]
+
+    # --- LLM comment generation (placeholder) ---
+    # You can replace this with a call to your LLM for richer commentary.
+    if score.is_mate() and score.mate() > 0:
+        comment = f"This move leads to a forced mate in {score.mate()}."
+    elif score.is_mate() and score.mate() < 0:
+        comment = (
+            f"This move allows a forced mate for the opponent in {abs(score.mate())}."
+        )
+    elif float(evaluation) > 2:
+        comment = "This move gives White a decisive advantage."
+    elif float(evaluation) < -2:
+        comment = "This move gives Black a decisive advantage."
+    else:
+        comment = "This is a quiet move. The position remains balanced."
+
+    # commentary = Agent(
+    #     model=lm,
+    #     instructions="Generate a tactical and concise commentary on the move proposed based on the evaluation and continuation. Your objective is to spell out what you get as input from stockfish and provide a clear, tactical analysis of the move. Do not provide any additional information or context. Mention also the continuation and whether it leads to checkmate.",
+    #     output_type=str,
+    # )
+
+    return str(
+        {
+            "board_fen": fen,
+            "proposed_move": move,
+            "is_check": is_check,
+            "stockfish_evaluation": evaluation,
+            "best_continuation": continuation,
+            "comment": comment,
+        }
+    )

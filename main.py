@@ -194,8 +194,6 @@ def main(
 
     if use_plan:
         print("Using plan in the output.")
-        example = """# Example of game state and reasoning: 
-        FEN: r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0\n legal_moves: [f5h7, f5h8, f5e6, f5g6, f5f6, f5d4, f5c3, f5b2]\n moves_left: 2\n additional_instructions: None\n plan:  [Bf5-h7: threatens mate on h8, Bh7-h8: next move] reasoning:\n Bf5-h7 threatens mate on h8. If Black does not defend, Bh7-h8 will be mate next move. \n move: f5h7"""
 
         class ChessBMP(ChessBM):
             plan: list[str] = Field(
@@ -296,13 +294,13 @@ def prep_puzzle(mate_in_k=2):
     if mate_in_k == 2:
         # from Siegbert Tarrasch vs. Max Kurschner, mate in 2
         # https://www.sparkchess.com/chess-puzzles/siegbert-tarrash-vs-max-kurschner.html
-        # move_limit, puzzle = (
-        #     2,
-        #     "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
-        # )
+        move_limit, puzzle = (
+            2,
+            "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
+        )
 
         # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
-        move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
+        # move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/william-evans-vs-alexander-macdonnell.html
         move_limit, puzzle = (

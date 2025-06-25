@@ -296,10 +296,10 @@ def prep_puzzle(mate_in_k=2):
     if mate_in_k == 2:
         # from Siegbert Tarrasch vs. Max Kurschner, mate in 2
         # https://www.sparkchess.com/chess-puzzles/siegbert-tarrash-vs-max-kurschner.html
-        move_limit, puzzle = (
-            2,
-            "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
-        )
+        # move_limit, puzzle = (
+        #     2,
+        #     "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
+        # )
 
         # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
         move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")

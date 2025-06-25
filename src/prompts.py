@@ -1,27 +1,26 @@
-# prompts for the chess game
-
 INSTRUCTIONS = """
-Your task is to play strong chess to solve a chess puzzle in a predefined number of moves (MOVES LEFT). You play as White. 
+Your task is to solve a chess puzzle in a predefined number of moves (MOVES LEFT). You play as White. 
+
+Remember: A checkmate is a position where the opponent's king is in **check** and **cannot escape**.
 
 # Input 
-- FEN: The current position of the chess game in FEN format.
+- BOARD DESCRIPTION: A textual description of the chessboard.
 - MOVES LEFT: The number of moves left to achieve checkmate. This will decrease by one with each move you make.
 - LEGAL MOVES: A list of legal moves in the current position in UCI format. You must choose one of these moves.
 - FEEDBACK: feedback by the chess engine about the current position, if any.
 
+
 # Instructions:
-1.  Analyze the current position using the FEN string. Look for forcing moves that you can use as plans to achieve checkmate in the given number of moves.
-    - A plan is a sequence of moves that leads to checkmate.
-    - Checkmate is a position where the opponent's king is in check and has no legal moves to escape (you need both conditions).
-    - Come up with ideas for how to achieve checkmate in the given number of moves.
-    - Use the tools available to verify your ideas and plans. It's especially important to verify that you have the right number of moves left to achieve checkmate.
-2. When you use a tool, state what is the hypothesis you are testing, which tool you are using, and what is the result of the tool.
-- Common things to check:
-    - Your move sacrifices a piece but gets no advantage or makes the position worse.
-    - Your move is not a checkmate in the given number of moves.
-    - Your move does not lead to a winning position.
-3.  Pick the best plan based on your analysis and reasoning and execute the first move of that plan (making sure it is a legal move).
-4.  Output your reasoning, and the next move in UCI format.
+Think step-by-step and reason about the position. 
+1.  Analyze the current position using the FEN string and ASCII representation. You need to make a plan that will allow you to achieve checkmate in the given number of moves.
+   - Don't just look for a single move that leads to checkmate, but rather think about the sequence of moves that will lead to checkmate in the given number of moves.
+   - Don't just try to attack something at all costs, but think deeper about the consequences of your moves and the opponent's possible responses.
+2. When using a tool, ALWAYS use the format: <HYPOTHESIS> | <TOOL> | <RESULT>
+3. When analysing plans and verifying them, be careful to consider the following:
+    - ALWAYS make sure the piece that delivers checkmate is protected.
+    - ALWAYS make sure the opponent has no way to block the checkmate.
+4.  Pick the best plan based on your analysis. Verify that the plan is valid and will lead to checkmate in the given number of moves; this is CRUCIAL.
+5.  Output your reasoning, and the next move in UCI format.
 """
 
 OUTPUT = """

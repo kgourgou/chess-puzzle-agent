@@ -284,6 +284,8 @@ class LLMPlayer(Agent):
         output_type = output_type or ChessBM
 
         chess_tools = [
+            # get_attackers_of_squares,
+            # are_sequences_checkmate,
             get_best_legal_counter_move_by_opponent,
         ]
 
@@ -347,10 +349,11 @@ class LLMPlayer(Agent):
                 tries += 1
                 continue
 
-            if checkmate_retry and move_limit == 1:
-                feedback += self.retry_if_not_checkmate(board, move.move)
-                tries += 1
-                continue
+            if checkmate_retry:
+                feedback += self.retry_if_not_checkmate(board, move.move, move_limit)
+                if feedback:  # Only retry if there was feedback (i.e., move didn't achieve puzzle goal)
+                    tries += 1
+                    continue
 
             break
 
@@ -362,25 +365,119 @@ class LLMPlayer(Agent):
 
         return move
 
-    def retry_if_not_valid(self, board, move) -> str | None:
-        if not board.is_legal(chess.Move.from_uci(move)):
-            print(f"Move {move} is not valid in the current position ... retrying.")
+    def retry_if_not_valid(self, board: chess.Board, move: str) -> str | None:
+        try:
+            move_obj = chess.Move.from_uci(move)
+            if not board.is_legal(move_obj):
+                print(f"Move {move} is not valid in the current position ... retrying.")
+
+                # Provide specific feedback about why the move is invalid
+                from_square = move_obj.from_square
+                to_square = move_obj.to_square
+                piece = board.piece_at(from_square)
+                target_piece = board.piece_at(to_square)
+
+                feedback = f"Your move {move} is illegal. "
+
+                if piece is None:
+                    feedback += (
+                        f"There is no piece on {chess.square_name(from_square)}. "
+                    )
+                elif piece.color != board.turn:
+                    feedback += f"The piece on {chess.square_name(from_square)} belongs to the opponent. "
+                elif target_piece and target_piece.color == piece.color:
+                    feedback += f"You cannot capture your own piece on {chess.square_name(to_square)}. "
+                else:
+                    # Use piece_map to get the piece name
+                    piece_map = {
+                        chess.PAWN: "Pawn",
+                        chess.KNIGHT: "Knight",
+                        chess.BISHOP: "Bishop",
+                        chess.ROOK: "Rook",
+                        chess.QUEEN: "Queen",
+                        chess.KING: "King",
+                    }
+                    piece_name = piece_map.get(piece.piece_type, "Unknown piece")
+                    feedback += f"The {piece_name} on {chess.square_name(from_square)} cannot move to {chess.square_name(to_square)}. "
+
+                # List some legal moves for that piece if it exists
+                if piece and piece.color == board.turn:
+                    legal_moves_for_piece = [
+                        m.uci()
+                        for m in board.legal_moves
+                        if m.from_square == from_square
+                    ]
+                    if legal_moves_for_piece:
+                        feedback += f"Legal moves for this piece: {', '.join(legal_moves_for_piece[:5])}{'...' if len(legal_moves_for_piece) > 5 else ''}. "
+
+                return feedback
+        except ValueError:
+            print(f"Move {move} has invalid UCI format ... retrying.")
             return (
-                f"Your last move ({move}) is not valid in the current position. "
-                "Please try a different legal move."
+                f"Your move '{move}' is not in valid UCI format (e.g., 'e2e4'). "
+                "Please use the format 'from_square to_square' like 'e2e4' or 'g1f3'."
             )
 
         return ""
 
-    def retry_if_not_checkmate(self, board, move) -> str | None:
+    def retry_if_not_checkmate(self, board, move, move_limit) -> str | None:
         temp_board = board.copy()
         temp_board.push_uci(move)
-        if not temp_board.is_checkmate():
-            print(f"Move {move} did not result in checkmate ... retrying.")
-            return (
-                f"Your last move ({move}) did not result in checkmate. "
-                "Please try a different move that delivers checkmate."
-            )
+
+        # For 1-move puzzles, we need immediate checkmate
+        if move_limit == 1:
+            if not temp_board.is_checkmate():
+                print(f"Move {move} did not result in checkmate ... retrying.")
+                return (
+                    f"Your last move ({move}) did not result in checkmate. "
+                    "This is a mate-in-1 puzzle - you need to deliver checkmate immediately."
+                )
+
+        # For multi-move puzzles, we need to check if the move is forcing and leads toward mate
+        else:
+            # Check if the move gives check (usually required in multi-move puzzles)
+            if not temp_board.is_check():
+                print(
+                    f"Move {move} doesn't give check in a multi-move puzzle ... retrying."
+                )
+                return (
+                    f"Your last move ({move}) doesn't give check. "
+                    f"In mate-in-{move_limit} puzzles, moves should typically be forcing (give check)."
+                )
+
+            # For mate-in-2+ puzzles, check if we're on the right track
+            # by seeing if opponent's best response still allows mate
+            if move_limit == 2:
+                # After our move and opponent's best response, can we still mate in 1?
+                try:
+                    counter_move = get_best_legal_counter_move_by_opponent(
+                        move, board.fen()
+                    )
+                    if counter_move and counter_move != "No counter move found.":
+                        # Simulate opponent's response
+                        temp_board2 = temp_board.copy()
+                        temp_board2.push_uci(counter_move)
+
+                        # Check if we have mate in 1 from resulting position
+                        mate_in_1_found = False
+                        for our_next_move in temp_board2.legal_moves:
+                            test_board = temp_board2.copy()
+                            test_board.push(our_next_move)
+                            if test_board.is_checkmate():
+                                mate_in_1_found = True
+                                break
+
+                        if not mate_in_1_found:
+                            print(
+                                f"Move {move} doesn't lead to mate in 2 after opponent's best response ... retrying."
+                            )
+                            return (
+                                f"Your last move ({move}) gives check but after opponent's best response ({counter_move}), "
+                                f"you don't have mate in 1. Look for more forcing moves."
+                            )
+                except:
+                    pass  # If tool fails, don't provide this feedback
+
         return ""
 
     def board_description(self, board: str | chess.Board) -> str:
@@ -461,8 +558,10 @@ class LLMPlayer(Agent):
             else "**Black's Pieces:**\nNone"
         )
 
-        # --- Tactical information about the king ---
+        # --- Enhanced tactical information ---
         tactical_info = []
+
+        # King safety analysis
         for color, name in [(chess.WHITE, "White"), (chess.BLACK, "Black")]:
             king_square = board.king(color)
             if king_square is not None:
@@ -473,8 +572,43 @@ class LLMPlayer(Agent):
                     king_status += " The king is stalemated."
                 elif board.is_check() and board.turn == color:
                     king_status += " The king is currently in check."
+                    # Count escape squares
+                    king_attacks = board.attacks(king_square)
+                    escape_squares = 0
+                    for escape_sq in king_attacks:
+                        temp_board = board.copy()
+                        try:
+                            temp_board.push(chess.Move(king_square, escape_sq))
+                            if not temp_board.is_check():
+                                escape_squares += 1
+                        except:
+                            pass
+                    king_status += (
+                        f" King has {escape_squares} possible escape squares."
+                    )
                 else:
                     king_status += " The king is not currently in check."
+
+                # Check if king is trapped by own pieces
+                if (
+                    color == chess.BLACK
+                ):  # Focus on black king since we're solving as white
+                    adjacent_squares = [
+                        king_square + delta
+                        for delta in [-9, -8, -7, -1, 1, 7, 8, 9]
+                        if 0 <= king_square + delta < 64
+                        and abs((king_square % 8) - ((king_square + delta) % 8)) <= 1
+                    ]
+                    blocked_by_own = sum(
+                        1
+                        for sq in adjacent_squares
+                        if board.piece_at(sq) and board.piece_at(sq).color == color
+                    )
+                    if blocked_by_own >= 5:
+                        king_status += (
+                            " TACTICAL NOTE: King is heavily restricted by own pieces!"
+                        )
+
                 # Castling rights
                 if color == chess.WHITE:
                     if board.has_kingside_castling_rights(
@@ -486,9 +620,57 @@ class LLMPlayer(Agent):
                         chess.BLACK
                     ) or board.has_queenside_castling_rights(chess.BLACK):
                         king_status += " Castling is still possible."
+
                 tactical_info.append(king_status)
             else:
                 tactical_info.append(f"{name} king is not on the board.")
+
+        # Look for common tactical patterns
+        pattern_info = []
+
+        # Check for back rank weakness
+        black_king_square = board.king(chess.BLACK)
+        if black_king_square is not None:
+            king_rank = chess.square_rank(black_king_square)
+            if king_rank == 7:  # Black king on back rank
+                # Check if blocked by own pawns
+                files_blocked = 0
+                for file_idx in range(
+                    max(0, chess.square_file(black_king_square) - 1),
+                    min(8, chess.square_file(black_king_square) + 2),
+                ):
+                    pawn_square = chess.square(file_idx, 6)  # 7th rank for black pawns
+                    if board.piece_at(pawn_square) and board.piece_at(
+                        pawn_square
+                    ) == chess.Piece(chess.PAWN, chess.BLACK):
+                        files_blocked += 1
+                if files_blocked >= 2:
+                    pattern_info.append(
+                        "TACTICAL PATTERN: Black king trapped on back rank by own pawns - look for back rank mate!"
+                    )
+
+        # Check for pieces that can give discovered check
+        white_pieces_squares = [
+            sq
+            for sq in chess.SQUARES
+            if board.piece_at(sq) and board.piece_at(sq).color == chess.WHITE
+        ]
+        for piece_sq in white_pieces_squares:
+            piece = board.piece_at(piece_sq)
+            if piece and piece.piece_type in [chess.BISHOP, chess.ROOK, chess.QUEEN]:
+                # Check if moving another white piece could create discovered check
+                for other_sq in white_pieces_squares:
+                    if other_sq != piece_sq:
+                        temp_board = board.copy()
+                        temp_board.remove_piece_at(other_sq)
+                        if temp_board.is_check():
+                            pattern_info.append(
+                                f"TACTICAL OPPORTUNITY: Moving piece from {chess.square_name(other_sq)} creates discovered check!"
+                            )
+                            break
+
+        if pattern_info:
+            tactical_info.extend(pattern_info)
 
         info = f"""{white_section}\n{black_section}\nTactical information:\n- {"-".join(tactical_info)}"""
         if isinstance(board, str):

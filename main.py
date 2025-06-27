@@ -156,7 +156,7 @@ def llm_player_move(
 
 
 def main(
-    number_of_trials: int = 5,
+    number_of_trials: int = 1,
     mate_in_k: int = 2,
     parallel_games: int = 1,
     use_plan: bool = False,
@@ -165,6 +165,7 @@ def main(
     use_example: bool = False,
     checkmate_retry: bool = False,
     svg: bool = False,
+    use_enhanced_prompts: bool = True,
 ) -> None:
     """
 
@@ -176,6 +177,7 @@ def main(
     :param show_reasoning: If True, the reasoning behind the LLM's move will be displayed.
     :param use_example: If True, an example will be used in the prompt.
     :param checkmate_retry: If True, the LLM will retry if the move does not result in checkmate.
+    :param use_enhanced_prompts: If True, use enhanced prompts with tactical patterns and better guidance.
 
     """
     mlflow.set_experiment("chess_game_simulation")
@@ -203,7 +205,9 @@ def main(
 
         chess_bm = ChessBMP
 
-    instructions_prompt = construct_system_prompt(output=output, example=example)
+    instructions_prompt = construct_system_prompt(
+        output=output, example=example, use_enhanced=use_enhanced_prompts
+    )
 
     print("Using instructions_prompt:")
     print(instructions_prompt)
@@ -266,6 +270,7 @@ def main(
         mlflow.log_param("show_reasoning", show_reasoning)
         mlflow.log_param("move_limit", config.move_limit)
         mlflow.log_param("use_example", use_example)
+        mlflow.log_param("use_enhanced_prompts", use_enhanced_prompts)
         mlflow.log_metric("losses", count_losses)
         mlflow.log_metric("wins", count_wins)
         mlflow.log_metric("draws", count_draws)
@@ -294,13 +299,13 @@ def prep_puzzle(mate_in_k=2):
     if mate_in_k == 2:
         # from Siegbert Tarrasch vs. Max Kurschner, mate in 2
         # https://www.sparkchess.com/chess-puzzles/siegbert-tarrash-vs-max-kurschner.html
-        move_limit, puzzle = (
-            2,
-            "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
-        )
+        # move_limit, puzzle = (
+        #     2,
+        #     "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
+        # )
 
         # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
-        # move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
+        move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/william-evans-vs-alexander-macdonnell.html
         move_limit, puzzle = (

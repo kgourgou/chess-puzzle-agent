@@ -26,6 +26,21 @@ Think deeply and step-by-step about the position. Use the following steps to con
 4.  Output your reasoning, and the next move in UCI format.
 """
 
+ENHANCED_INSTRUCTIONS = """
+you are a chess agent and you will help me solve a mate-in-two puzzle.
+
+Review the FEN, you represent the white player. Then think step-by-step about strategies and give me a list of your two moves in UCI format.
+
+You may use the tools to verify your hypotheses about the position and check if your plan is valid.
+
+# Input 
+- BOARD DESCRIPTION: A textual description of the chessboard.
+- MOVES LEFT: The number of moves left to achieve checkmate. This will decrease by one with each move you make.
+- LEGAL MOVES: A list of legal moves in the current position in UCI format. You must choose one of these moves.
+- FEEDBACK: feedback by the chess engine about the current position, if any.
+
+"""
+
 OUTPUT = """
 # Output format
 plan: (your plan as a list of moves and reasoning)
@@ -41,6 +56,7 @@ def construct_system_prompt(
     instructions: str | None = None,
     output: str | None = None,
     example: str | None = None,
+    use_enhanced: bool = False,
 ) -> str:
     """
     Construct the system prompt for the chess game.
@@ -48,10 +64,12 @@ def construct_system_prompt(
     :param instructions: The instructions for the chess game.
     :param output: The output format for the chess game.
     :param example: An example of the chess game.
+    :param use_enhanced: Whether to use enhanced instructions with tactical patterns.
     :return: The constructed system prompt.
     """
 
-    instructions = instructions or INSTRUCTIONS
+    if instructions is None:
+        instructions = ENHANCED_INSTRUCTIONS if use_enhanced else INSTRUCTIONS
     output = output or OUTPUT
     example = example or EXAMPLE
 

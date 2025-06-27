@@ -289,7 +289,10 @@ class LLMPlayer(Agent):
         if move_limit == 1:
             temp_board.push_uci(plan[0])
             if temp_board.is_checkmate():
-                return None, 10000
+                return FeedbackModel(
+                    reasoning="The plan leads to checkmate in one move.",
+                    feedback=f"The plan {plan} is valid and leads to checkmate in one move.",
+                ), 10000.0
 
             temp_board.pop()
 
@@ -302,18 +305,19 @@ class LLMPlayer(Agent):
         print(f"Scores for the plan: {scores}")
 
         for i, move in enumerate(plan):
-            if scores[move] > 10:
+            if scores[move] > 1:
                 # move is good, review the next
                 continue
+
             try:
                 legal_moves = [m.uci() for m in temp_board.legal_moves]
-
                 if move not in legal_moves:
                     feedback = asyncio.run(
                         tactical_agent.run(
                             str(
                                 {
                                     "board_fen": board.fen(),
+                                    "legal_moves": legal_moves,
                                     "plan with chess engine scores": scores,
                                     "opponents_counter_moves": record_best_engine_moves,
                                     "move_limit": move_limit,
@@ -322,11 +326,15 @@ class LLMPlayer(Agent):
                             )
                         )
                     ).output
-                    print(f"Feedback from tactical agent: {feedback}")
                     return feedback, scores[move]
 
                 move_obj = chess.Move.from_uci(move)
                 temp_board.push(move_obj)
+                counter_move = get_best_legal_counter_move_by_opponent(temp_board)
+                if counter_move:
+                    counter_move_obj = chess.Move.from_uci(counter_move)
+                    temp_board.push(counter_move_obj)
+                    record_best_engine_moves.append(counter_move)
 
                 # If it's the last move in the plan, check for checkmate
                 if i == len(plan) - 1:
@@ -336,6 +344,7 @@ class LLMPlayer(Agent):
                                 str(
                                     {
                                         "board_fen": board.fen(),
+                                        "legal_moves": legal_moves,
                                         "plan with chess engine scores": scores,
                                         "opponents_counter_moves": record_best_engine_moves,
                                         "move_limit": move_limit,
@@ -348,17 +357,14 @@ class LLMPlayer(Agent):
                         return feedback, scores[move]
 
                 # If it's not the last move, get the best response from the opponent
-                if i < len(plan) - 1:
-                    counter_move = get_best_legal_counter_move_by_opponent(temp_board)
-                    if counter_move:
-                        counter_move_obj = chess.Move.from_uci(counter_move)
-                        temp_board.push(counter_move_obj)
-                        record_best_engine_moves.append(counter_move)
 
             except ValueError as e:
                 return f"Error processing move {move}: {str(e)}", 0.0
 
-        return None, 10000
+        return FeedbackModel(
+            reasoning="The plan is valid and leads to checkmate.",
+            feedback=f"The plan {plan} is valid and leads to checkmate.",
+        ), 10000.0
 
     def create_instructions_str(
         self,

@@ -1,49 +1,42 @@
-INSTRUCTIONS = """
-Your task is to solve a chess puzzle in a predefined number of moves (MOVES LEFT). You play as White. 
+INSTRUCTIONS_COACH = """"
+You are a chess coach. You will be given the initial board position, the proposed plan of a player (playing as White) (with chess engine scores indicating the quality of each move), and the best moves by a chess engine (Black). The goal of the White player is to achieve checkmate in the given number of moves.
 
-Remember: A checkmate is a position where the opponent's king is in **check** and **cannot escape**.
+# Score instructions 
+- The score is a numerical value indicating the quality of the move. A positive score indicates a good move, while a negative score indicates a bad move. A score of -10,000 is terrible, while a score of 10,000 is excellent.
+- Positive scores are favorable for the White player, therefore we should encourage moves with positive scores.
+- scores from (-1,5) are neutral, meaning the move is not particularly good or bad. 
+- Scores from (-5, -1) are unfavorable for the White player, meaning the move is not optimal and should be avoided.
+- Scores below -5 are very unfavorable for the White player, meaning the move is a blunder and should be avoided at all costs.
 
-# Input 
-- BOARD DESCRIPTION: A textual description of the chessboard.
-- MOVES LEFT: The number of moves left to achieve checkmate. This will decrease by one with each move you make.
-- LEGAL MOVES: A list of legal moves in the current position in UCI format. You must choose one of these moves.
-- FEEDBACK: feedback by the chess engine about the current position, if any.
-
-# Useful things to remember: 
-- You can only promote a pawn to a queen, rook, bishop, or knight when you reach the last rank, which for white is the 8th rank.
-- A piece cannot pass through a square occupied by your own piece or the opponent's piece, except for the knight, which can jump over pieces.
-
-# Instructions:
-Think deeply and step-by-step about the position. Use the following steps to construct your plan: 
-1.  Analyze the current position using the FEN string and ASCII representation. You need to make a plan that will allow you to achieve checkmate in the given number of moves.
-    - If MOVES LEFT is 1, you need to find a checkmate in one move. Check if there's a direct checkmate available.
-    - If MOVES LEFT is greater than 1, think about how to create a position where you can checkmate the opponent's king in the given number of moves.
-    - Look for tactical opportunities, such as forks, pins, and skewers.
-   - Don't rush to capture, think about the opponent's threats and how to neutralize them.
-   - When constructing plans, ALWAYS consider the best response from the opponent.
-2. When using a tool, ALWAYS use the format: <HYPOTHESIS> | <TOOL> | <RESULT>
-3.  Pick the best plan based on your analysis. Verify that the plan is valid and will lead to checkmate in the given number of moves; this is CRUCIAL.
-4.  Output your reasoning, and the next move in UCI format.
+# Instructions
+- Provide concise feedback on the player's move according to the results from the engine. 
+- Explain why the move is bad in light of the engine's best counter move and the goal to achieve checkmate in the given number of moves.
+- The opponent's strategy is to prevent checkmate.
+- Offer suggestions for the player to think about, focus on concrete moves. 
 """
 
+
 ENHANCED_INSTRUCTIONS = """
-you are a chess agent and you will help me solve a mate-in-two puzzle.
+You are a chess puzzle solver. Your task is to find the fastest checkmate for White in a mate-in-n puzzle.
 
-Review the FEN, you represent the white player. Then think step-by-step about strategies and give me a list of your two moves in UCI format.
+Instructions:
+1. Carefully read the board description and FEN. Understand the position and the number of moves (n) allowed to deliver checkmate.
+2. Only consider moves from the provided list of legal moves (UCI format). Do not invent or suggest moves not in the list.
+3. Your primary goal is to checkmate Black in n moves or fewer. If a quicker mate is possible, always choose it.
+4. First consider all checks, then captures, then forcing moves, and finally other moves. Prioritize moves that lead to checkmate.
+5. Review the chess engine’s feedback and scores. Use this feedback to improve your next move or plan. Trust the engine's feedback, as it is based on deep analysis of the position.
+6. Be concise and logical in your reasoning. Clearly explain why your chosen move is best for achieving mate.
 
-You may use the tools to verify your hypotheses about the position and check if your plan is valid.
-
-# Input 
-- BOARD DESCRIPTION: A textual description of the chessboard.
-- MOVES LEFT: The number of moves left to achieve checkmate. This will decrease by one with each move you make.
-- LEGAL MOVES: A list of legal moves in the current position in UCI format. You must choose one of these moves.
-- FEEDBACK: feedback by the chess engine about the current position, if any.
-
+# Input
+- BOARD DESCRIPTION: Textual description of the chessboard.
+- n: Number of moves remaining to achieve checkmate (decreases by one after each move).
+- LEGAL MOVES: List of legal moves in UCI format. Only select from these.
+- FEEDBACK: Chess engine feedback about the current position, if available.
 """
 
 OUTPUT = """
 # Output format
-plan: (your plan as a list of moves and reasoning)
+plan: [your plan as a list of moves in UCI format, separated by commas] # only write your own moves here. 
 reasoning: (all your thinking and analysis)
 move: (your next move in UCI format)
 """
@@ -69,7 +62,7 @@ def construct_system_prompt(
     """
 
     if instructions is None:
-        instructions = ENHANCED_INSTRUCTIONS if use_enhanced else INSTRUCTIONS
+        instructions = ENHANCED_INSTRUCTIONS
     output = output or OUTPUT
     example = example or EXAMPLE
 

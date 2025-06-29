@@ -351,10 +351,11 @@ def prep_puzzle(mate_in_k=2):
         # )
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/roberto-grau-vs-edgar-colle.html
-        move_limit, puzzle = (
-            3,
-            "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0",
-        )
+#        move_limit, puzzle = (
+#            3,
+#            "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0",
+#        )
+        move_limit, puzzle = (3, "R6R/1r3pp1/4p1kp/3pP3/1r2qPP1/7P/1P1Q3K/8 w - - 1 0")
     else:
         raise ValueError(f"k = {mate_in_k} is not supported.")
 

@@ -21,7 +21,7 @@ You will try to iteratively improve the move with feedback from the engine. Afte
 # Input
 - BOARD DESCRIPTION: Textual description of the chessboard.
 - n: Number of moves remaining to achieve checkmate (decreases by one after each move).
-- LEGAL MOVES: List of legal moves in UCI format. Only select from these. There may be legal moves that are not in this list, you should assume those are bad moves.
+- LEGAL MOVES: List of legal moves in UCI format. Only select from these. There may be legal moves that are not in this list, you should assume those are bad moves. Any moves that have been tried will be removed from this list.
 - FEEDBACK: Chess engine feedback about the current position, if available.
 - MOVE: The move proposed by the chess engine in UCI format.
 - SCORE: The score of the move proposed by the chess engine.

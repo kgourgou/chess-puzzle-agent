@@ -13,19 +13,25 @@ from pydantic_ai.models.openai import OpenAIModel
 
 from dataclasses import dataclass
 
-from src.players import random_player, LLMPlayer, ChessBM
-from src.prompts import construct_system_prompt
-import matplotlib.pyplot as plt
-
-import logfire
+from src.players import (
+    random_player,
+    LLMPlayer,
+    ChessBM,
+    CorrectorLLMPlayer,
+    FeedbackModelWithMove,
+)
+from src.prompts import INSTRUCTIONS_COACH
 
 
 # Load environment variables from .env file
 assert load_dotenv()
 
 # configure logfire
-logfire.configure(token=os.getenv("LOGFIRE_KEY"))
-logfire.instrument_pydantic_ai()
+if "LOGFIRE_KEY" in os.environ:
+    import logfire
+
+    logfire.configure(token=os.getenv("LOGFIRE_KEY"))
+    logfire.instrument_pydantic_ai()
 
 
 @dataclass
@@ -86,15 +92,15 @@ def play_game(
             checkmate_retry=config.checkmate_retry,
         )
 
-        plt.plot(
-            [i for i in range(len(moves_and_scores))],
-            [score for _, score in moves_and_scores],
-            marker="o",
-        )
-        plt.xlabel("Try")
-        plt.ylabel("Score")
-        plt.title("Scores of Moves Over Tries")
-        plt.show()
+        # plt.plot(
+        #     [i for i in range(len(moves_and_scores))],
+        #     [score for _, score in moves_and_scores],
+        #     marker="o",
+        # )
+        # plt.xlabel("Try")
+        # plt.ylabel("Score")
+        # plt.title("Scores of Moves Over Tries")
+        # plt.show()
         # exit(0)
 
         board.push_uci(move.move)
@@ -103,9 +109,6 @@ def play_game(
         if config.show_reasoning:
             print("reasoning:", move.reasoning)
             print("LLM player move:", move.move)
-
-        if config.use_plan:
-            print("Using plan:", move.plan)
 
         if config.show_board:
             print(board.unicode())
@@ -173,10 +176,10 @@ def main(
     parallel_games: int = 1,
     use_plan: bool = True,
     show_board: bool = False,
-    show_reasoning: bool = True,
+    show_reasoning: bool = False,
     use_example: bool = False,
     checkmate_retry: bool = True,
-    svg: bool = True,
+    svg: bool = False,
     use_enhanced_prompts: bool = True,
 ) -> None:
     """
@@ -196,7 +199,7 @@ def main(
     mlflow.set_tracking_uri("mlruns")
     mlflow.openai.autolog()
 
-    model_name = "anthropic/claude-3-7-sonnet-20250219"
+    model_name = os.getenv("MODEL_NAME")
     lm = OpenAIModel(
         model_name=model_name,
         provider="openrouter",
@@ -204,7 +207,7 @@ def main(
 
     example = None
     output = prep_output(use_plan)
-    chess_bm = ChessBM
+    # chess_bm = ChessBM
 
     if use_plan:
         print("Using plan in the output.")
@@ -215,19 +218,27 @@ def main(
                 description="List of moves in UCI format with reasoning for each move.",
             )
 
-        chess_bm = ChessBMP
+        # chess_bm = ChessBMP
 
-    instructions_prompt = construct_system_prompt(
-        output=output, example=example, use_enhanced=use_enhanced_prompts
-    )
+    #instructions_prompt = construct_system_prompt(
+    #    output=output, example=example, use_enhanced=use_enhanced_prompts
+    #)
 
-    print("Using instructions_prompt:")
-    print(instructions_prompt)
+#    print("Using instructions_prompt:")
+ #   print(instructions_prompt)
 
-    llm_player = LLMPlayer(
+    # llm_player = LLMPlayer(
+    #     model=lm,
+    #     instructions=instructions_prompt,
+    #     output_type=chess_bm,
+    #     name="Player A",
+    #     retries=3,
+    # )
+    print(f'prompt: {INSTRUCTIONS_COACH}')
+    llm_player = CorrectorLLMPlayer(
         model=lm,
-        instructions=instructions_prompt,
-        output_type=chess_bm,
+        output_type=FeedbackModelWithMove,
+        instructions=INSTRUCTIONS_COACH,
         name="Player A",
         retries=3,
     )
@@ -238,7 +249,7 @@ def main(
         move_limit=move_limit,
         use_plan=use_plan,
         show_board=show_board,
-        checkmate_retry=checkmate_retry,  # set to True if you want to retry if the move does not result in checkmate
+        checkmate_retry=checkmate_retry,
         svg=svg,
     )
 
@@ -253,14 +264,14 @@ def main(
     with mlflow.start_run():
         mlflow_run_id = mlflow.active_run().info.run_id
 
-        def run_game(_):
+        def run_game():
             return play_game(mlflow_run_id, board, llm_player, config)
 
         if parallel_games == 1:
             # run games sequentially
             results = []
             for i in tqdm(range(number_of_trials), desc="Running games"):
-                result = run_game(i)
+                result = run_game()
                 results.append(result)
         else:
             # run games in parallel
@@ -320,16 +331,24 @@ def prep_puzzle(mate_in_k=2):
     :return: A tuple containing the move limit, FEN string, and chess board.
     """
     puzzle = None
-    if mate_in_k == 2:
+    if mate_in_k == 1:
+        move_limit, puzzle = (1, "7r/p2B1ppp/k2p2b1/4n3/1Q2P3/P1B5/KP3P1P/7q w - - 0 3")
+
+    elif mate_in_k == 2:
         # from Siegbert Tarrasch vs. Max Kurschner, mate in 2
         # https://www.sparkchess.com/chess-puzzles/siegbert-tarrash-vs-max-kurschner.html
-        move_limit, puzzle = (
-            2,
-            "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
-        )
+        # move_limit, puzzle = (
+        #     2,
+        #     "r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0",
+        # )
 
         # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
-        # move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
+        move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
+
+        # move_limit, puzzle = (
+        #     2,
+        #     "r4R2/1b2n1pp/p2Np1k1/1pn5/4pP1P/8/PPP1B1P1/2K4R w - - 1 0",
+        # )
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/roberto-grau-vs-edgar-colle.html
         move_limit, puzzle = (

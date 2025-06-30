@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Puzzle UI - Play vs CorrectorLLMPlayer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chess.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Chess Puzzle UI</h1>
+        <div class="subtitle">Play as Black vs CorrectorLLMPlayer</div>
+        
+        <div class="game-setup">
+            <div class="input-group">
+                <label for="puzzle-fen">Chess Puzzle FEN:</label>
+                <input type="text" id="puzzle-fen" placeholder="Enter FEN notation or leave empty for default puzzle">
+                <button id="start-game">Start Game</button>
+            </div>
+        </div>
+        
+        <div class="game-area" id="game-area" style="display: none;">
+            <div class="board-container">
+                <div id="chess-board"></div>
+                <div class="board-info">
+                    <div class="status-bar">
+                        <div id="turn-indicator">White to move</div>
+                        <div id="game-status">Game not started</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="side-panel">
+                <div class="game-controls">
+                    <button id="make-white-move" disabled>Make White Move</button>
+                    <button id="undo-move" disabled>Undo Last Move</button>
+                    <button id="new-game-btn">New Game</button>
+                    
+                    <div class="move-input">
+                        <label for="uci-move">Your move (UCI):</label>
+                        <input type="text" id="uci-move" placeholder="e.g. d5d4" maxlength="5">
+                        <button id="make-uci-move" disabled>Make Move</button>
+                    </div>
+                </div>
+                
+                <div class="move-history">
+                    <h3>Move History</h3>
+                    <div id="moves-list"></div>
+                </div>
+                
+                <div class="game-info">
+                    <div><strong>You play as:</strong> Black</div>
+                    <div><strong>AI plays as:</strong> White (CorrectorLLMPlayer)</div>
+                    <div class="current-fen">
+                        <strong>Current FEN:</strong>
+                        <div id="current-fen-display">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ul>
+                <li>Enter a chess puzzle FEN where White has a winning advantage</li>
+                <li>Click "Start Game" to begin</li>
+                <li>White (CorrectorLLMPlayer) will make the first move</li>
+                <li>Click and drag pieces to make your moves as Black</li>
+                <li>Try to defend against White's attack!</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div id="move-highlight" class="move-highlight"></div>
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <div>AI is thinking...</div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='js/chess.js') }}"></script>
+</body>
+</html>

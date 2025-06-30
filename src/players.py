@@ -326,7 +326,7 @@ class LLMPlayer(Agent):
         legal_moves = [move.uci() for move in board.legal_moves]
         scores = shallow_score_of_moves(legal_moves, board)
         top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[
-            :10
+            :20
         ]
         top_legal_moves = [legal_moves[i] for i in top_indices]
         # shuffle to keep things fair

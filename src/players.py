@@ -87,8 +87,6 @@ class LLMPlayer(Agent):
 
         chess_tools = tools or []
 
-        self.cache = {}
-
         super().__init__(
             model=model,
             instructions=instructions,

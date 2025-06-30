@@ -181,6 +181,7 @@ def main(
     checkmate_retry: bool = True,
     svg: bool = False,
     use_enhanced_prompts: bool = True,
+    use_mlflow: bool = False, 
 ) -> None:
     """
 
@@ -193,11 +194,15 @@ def main(
     :param use_example: If True, an example will be used in the prompt.
     :param checkmate_retry: If True, the LLM will retry if the move does not result in checkmate.
     :param use_enhanced_prompts: If True, use enhanced prompts with tactical patterns and better guidance.
+    :param svg: If True, save the game as SVGs.
+    :param use_mlflow: If True, log the results to MLflow.
+    :return: None
 
     """
-    mlflow.set_experiment("chess_game_simulation")
-    mlflow.set_tracking_uri("mlruns")
-    mlflow.openai.autolog()
+    if use_mlflow:
+        mlflow.set_experiment("chess_game_simulation")
+        mlflow.set_tracking_uri("mlruns")
+        mlflow.openai.autolog()
 
     model_name = os.getenv("MODEL_NAME")
     lm = OpenAIModel(
@@ -218,22 +223,7 @@ def main(
                 description="List of moves in UCI format with reasoning for each move.",
             )
 
-        # chess_bm = ChessBMP
-
-    #instructions_prompt = construct_system_prompt(
-    #    output=output, example=example, use_enhanced=use_enhanced_prompts
-    #)
-
-#    print("Using instructions_prompt:")
- #   print(instructions_prompt)
-
-    # llm_player = LLMPlayer(
-    #     model=lm,
-    #     instructions=instructions_prompt,
-    #     output_type=chess_bm,
-    #     name="Player A",
-    #     retries=3,
-    # )
+     
     print(f'prompt: {INSTRUCTIONS_COACH}')
     llm_player = CorrectorLLMPlayer(
         model=lm,
@@ -351,11 +341,11 @@ def prep_puzzle(mate_in_k=2):
         # )
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/roberto-grau-vs-edgar-colle.html
-#        move_limit, puzzle = (
-#            3,
-#            "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0",
-#        )
-        move_limit, puzzle = (3, "R6R/1r3pp1/4p1kp/3pP3/1r2qPP1/7P/1P1Q3K/8 w - - 1 0")
+       move_limit, puzzle = (
+           3,
+           "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0",
+       )
+        # move_limit, puzzle = (3, "R6R/1r3pp1/4p1kp/3pP3/1r2qPP1/7P/1P1Q3K/8 w - - 1 0")
     else:
         raise ValueError(f"k = {mate_in_k} is not supported.")
 

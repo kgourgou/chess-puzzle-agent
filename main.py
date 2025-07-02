@@ -310,15 +310,18 @@ def prep_puzzle(mate_in_k=2):
     puzzle = None
     if mate_in_k == 1:
         move_limit, puzzle = (1, "7r/p2B1ppp/k2p2b1/4n3/1Q2P3/P1B5/KP3P1P/7q w - - 0 3")
+
     elif mate_in_k == 2:
-        # https://www.sparkchess.com/chess-puzzles/paul-morphys-problem.html
-        move_limit, puzzle = (2, "kbK5/pp6/1P6/8/8/8/8/R7 w - -")
+       # move_limit, puzzle = (2, 'r2qk2r/pb4pp/1n2Pb2/2B2Q2/p1p5/2P5/2B2PPP/RN2R1K1 w - - 1 0')
+        move_limit, puzzle = (2, "4r3/pbpn2n1/1p1prp1k/8/2PP2PB/P5N1/2B2R1P/R5K1 w - - 1 0")
     elif mate_in_k == 3:
         # https://www.sparkchess.com/chess-puzzles/roberto-grau-vs-edgar-colle.html
         move_limit, puzzle = (
             3,
             "1k5r/pP3ppp/3p2b1/1BN1n3/1Q2P3/P1B5/KP3P1P/7q w - - 1 0",
         )
+    elif mate_in_k == 5:
+        move_limit, puzzle = (5, "6r1/p3p1rk/1p1pPp1p/q3n2R/4P3/3BR2P/PPP2QP1/7K w - - 1 0")
     else:
         raise ValueError(f"k = {mate_in_k} is not supported.")
 

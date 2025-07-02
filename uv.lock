@@ -436,6 +436,8 @@ dependencies = [
     { name = "pydantic-ai" },
     { name = "python-chess" },
     { name = "python-dotenv" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "tqdm" },
 ]
 
@@ -462,6 +464,7 @@ requires-dist = [
     { name = "pydantic-ai", specifier = ">=0.3.1" },
     { name = "python-chess", specifier = ">=1.999" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "scipy", specifier = ">=1.15.3" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 

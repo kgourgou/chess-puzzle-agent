@@ -1,3 +1,4 @@
+# This script was written with Claude Code. 
 #!/usr/bin/env python3
 
 import chess

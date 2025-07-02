@@ -45,3 +45,29 @@ Also, Claude Code wrote a nice ui if you want to play against the agent that way
 ```bash
 uv run python web_ui.py
 ```
+
+### RandomCheckPlayer
+
+The repository includes a `RandomCheckPlayer` that tests the hypothesis that randomly selecting good-scoring check moves might be sufficient for puzzle solving. This player:
+
+- Finds all legal moves that deliver check
+- Randomly selects from these check moves
+- Scores each move with Stockfish
+- Uses moves that exceed a configurable score threshold
+- Falls back to the best-scoring check move if no move exceeds the threshold
+
+### Experiment Script
+
+Run `test_random_check_hypothesis.py` to compare the RandomCheckPlayer against the LLM player:
+
+```bash
+uv run python test_random_check_hypothesis.py --mate_in_k 2 --number_of_trials 20
+```
+
+This experiment script:
+
+- Runs both players on the same puzzles
+- Collects detailed performance metrics (win rates, move quality, efficiency)
+- Performs statistical analysis comparing the approaches
+- Generates move-by-move SVG visualizations (optional)
+- Tests whether simple check-based heuristics can match LLM performance

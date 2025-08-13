@@ -2,6 +2,8 @@
 
 This implements a little LLM agent that tries to solve chess puzzles against an opponent that makes random moves.
 
+I wrote a few things about this [here](https://kosti.bearblog.dev/llm-agents-and-chess-puzzles/).
+
 For every turn, first a random move is picked, then scored against Stockfish and its best counter move. Then:
 
 ```markdown
